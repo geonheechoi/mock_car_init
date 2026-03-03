@@ -10,11 +10,15 @@ body {
 
 .navbar {
   display: flex;
-  justify-content: space-between;
+  justify-content: space-around;
+  align-items: center;
+
+  width: 100%;          /* ✅ 전체 가로 */
   background: #111;
   color: white;
-  padding: 15px;
-  border-radius: 8px;
+  padding: 20px 40px;
+
+  box-sizing: border-box;
 }
 
 .search {
