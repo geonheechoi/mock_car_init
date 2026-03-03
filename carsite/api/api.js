@@ -42,11 +42,23 @@ async function connectDB() {
   console.log("✅ MongoDB connected");
 }
   */
+ /*
  async function connectDB() {
 
   const uri =
-    "mongodb+srv://fear5579_db_user:123456789%2A@cluster0.pt8d93p.mongodb.net/carsite?retryWrites=true&w=majority";
+    "mongodb+srv://fear5579_db_user:123456789*@cluster0.pt8d93p.mongodb.net/carsite?retryWrites=true&w=majority";
 
+  await mongoose.connect(uri, {
+    serverSelectionTimeoutMS: 10000,
+  });
+
+  console.log("✅ MongoDB connected");
+}
+  */
+ async function connectDB() {
+
+  const uri =
+  "mongodb+srv://fear5579_db_user:123456789*@cluster0.pt8d93p.mongodb.net/y";
   await mongoose.connect(uri, {
     serverSelectionTimeoutMS: 10000,
   });
