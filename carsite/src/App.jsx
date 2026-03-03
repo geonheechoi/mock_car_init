@@ -100,6 +100,8 @@ export default function App() {
       display: "flex",
       flexDirection: "column",
       gap: 10,
+      color: "#0f172a", // ✅ 추가
+
     },
 
     carTitle: { margin: 0, fontSize: 20 },
@@ -118,7 +120,7 @@ export default function App() {
 
     // ✅ 오른쪽 패널 고정(스크롤 따라오게)
     sidePanel: {
-      background: "white",
+      background: "blue",
       borderRadius: 14,
       padding: 16,
       boxShadow: "0px 2px 12px rgba(0,0,0,0.08)",
@@ -132,10 +134,10 @@ export default function App() {
       justifyContent: "space-between",
       alignItems: "center",
       padding: "10px 0",
-      borderBottom: "1px solid #eef2f7",
+      borderBottom: "1px solid #0f172a",
       fontSize: 14,
     },
-    smallNote: { marginTop: 12, fontSize: 13, color: "#64748b", lineHeight: 1.45 },
+    smallNote: { marginTop: 12, fontSize: 13, color: "#0f172a", lineHeight: 1.45 },
   };
 
   return (
