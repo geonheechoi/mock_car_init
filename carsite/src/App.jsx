@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
 
 const cars = [
   { id: 1, name: "Tesla Model 3", price: 52000 },
@@ -12,10 +13,68 @@ const cars = [
 export default function App() {
   const [search, setSearch] = useState("");
   const [cartCount, setCartCount] = useState(0);
-
+/*
   const trackEvent = (type, data = {}) => {
     console.log("EVENT:", type, data);
   };
+*/
+const API_BASE = "http://localhost:4000"; // 네 백엔드 주소
+/*
+const trackEvent = async (type, data = {}) => {
+  const payload = {
+    type,
+    ts: Date.now(),
+    sessionId: localStorage.getItem("sid") || (() => {
+      const v = crypto.randomUUID();
+      localStorage.setItem("sid", v);
+      return v;
+    })(),
+    page: window.location.pathname,
+    data,
+  };
+
+  console.log("EVENT:", payload);
+
+  try {
+    await fetch(`${API_BASE}/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    console.error("Failed to send event:", err);
+  }
+};
+*/
+const trackEvent = async (type, data = {}) => {
+  const payload = {
+    type,
+    ts: Date.now(),
+    sessionId:
+      localStorage.getItem("sid") ||
+      (() => {
+        const v = crypto.randomUUID();
+        localStorage.setItem("sid", v);
+        return v;
+      })(),
+    page: window.location.pathname,
+    data,
+  };
+
+  console.log("EVENT:", payload);
+
+  try {
+    await fetch(`${API_BASE}/api/events`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    console.error("Failed to send event:", err);
+  }
+};
 
   const filteredCars = useMemo(() => {
     const q = search.trim().toLowerCase();

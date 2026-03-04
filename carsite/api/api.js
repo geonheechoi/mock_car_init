@@ -1,5 +1,8 @@
-// 1. MUST BE AT THE VERY TOP: DNS Fix for Node.js v19+ 
+// 1) MUST BE AT THE VERY TOP: DNS Fix for Node.js v19+ (best-effort)
 const dns = require("node:dns");
+
+// ✅ 실무에선 "setServers"만으로 완전 해결 안 되는 경우 많음.
+// 그래도 best-effort로 두고, Atlas가 계속 안되면 "Non-SRV" 연결 문자열로 바꾸는 게 확실함.
 dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
 const express = require("express");
@@ -10,15 +13,15 @@ require("dotenv").config();
 
 const app = express();
 
-// ✅ CORS: 일단 전체 허용 (나중에 Netlify 도메인으로 제한 가능)
-app.use(cors());
-app.use(express.json());
+// ✅ 프론트 도메인 나중에 제한 가능
+app.use(cors({ origin: true }));
+app.use(express.json({ limit: "1mb" }));
 
 // ✅ Prometheus registry
 const register = new client.Registry();
 client.collectDefaultMetrics({ register });
 
-// 커스텀 메트릭
+// ✅ 커스텀 메트릭 (type 라벨만)
 const eventsCounter = new client.Counter({
   name: "carsite_events_total",
   help: "Total events received",
@@ -27,132 +30,98 @@ const eventsCounter = new client.Counter({
 register.registerMetric(eventsCounter);
 
 // ---- MongoDB connect ----
-/*
 async function connectDB() {
-  // ✅ Atlas에서 "Standard connection string (non-SRV)" 복사해서 여기에 붙여넣기
-  // 예시 형태:
-  // mongodb://USER:PASSWORD@cluster0-shard-00-00.pt8d93p.mongodb.net:27017,cluster0-shard-00-01.pt8d93p.mongodb.net:27017,cluster0-shard-00-02.pt8d93p.mongodb.net:27017/carsite?ssl=true&replicaSet=atlas-xxxxx-shard-0&authSource=admin&retryWrites=true&w=majority
-  const uri ="mongodb+srv://fear5579_db_user:123456789*@cluster0.pt8d93p.mongodb.net";
+  // ⚠️ 비밀번호에 특수문자 있으면 반드시 인코딩해야 함.
+  // 예: * => %2A
+  // const uri = "mongodb+srv://fear5579_db_user:123456789%2A@cluster0.pt8d93p.mongodb.net/carsite?retryWrites=true&w=majority";
 
-  if (!uri) {
-    console.error("❌ MONGODB_URI_NON_SRV missing in env");
-    process.exit(1);
-  }
-
-  await mongoose.connect(uri, {
-    serverSelectionTimeoutMS: 10000,
-  });
-
-  console.log("✅ MongoDB connected");
-}
-  */
- /*
- async function connectDB() {
-
+  // ✅ 가능하면 .env로 빼라 (하지만 너는 하드코딩 속도전이라 했으니 일단 유지)
   const uri =
-    "mongodb+srv://fear5579_db_user:123456789*@cluster0.pt8d93p.mongodb.net/carsite?retryWrites=true&w=majority";
-
-  await mongoose.connect(uri, {
-    serverSelectionTimeoutMS: 10000,
-  });
-
-  console.log("✅ MongoDB connected");
-}
-  */
- /*
- async function connectDB() {
-
-  const uri =
-  await mongoose.connect(uri, {
-    "mongodb+srv://fear5579_db_user:123456789*@cluster0.pt8d93p.mongodb.net/carsite?retryWrites=true&w=majority"
-    serverSelectionTimeoutMS: 10000,
-  });
-
-  console.log("✅ MongoDB connected");
-}
-  */
- /*
-async function connectDB() {
-  const uri =
-    "mongodb://USER:PASSWORD@cluster0-shard-00-00...:27017,cluster0-shard-00-01...:27017,cluster0-shard-00-02...:27017/carsite?ssl=true&replicaSet=...&authSource=admin&retryWrites=true&w=majority";
-
-  await mongoose.connect(uri, {
-    serverSelectionTimeoutMS: 10000,
-  });
-
-  console.log("✅ MongoDB connected");
-}
-  */
- async function connectDB() {
-  // Use the SRV string from your Atlas dashboard
-  const uri ="mongodb+srv://fear5579_db_user:123456789*@cluster0.pt8d93p.mongodb.net/carsite?retryWrites=true&w=majority";
+    "mongodb+srv://fear5579_db_user:123456789%2A@cluster0.pt8d93p.mongodb.net/carsite?retryWrites=true&w=majority";
 
   try {
     await mongoose.connect(uri, {
       serverSelectionTimeoutMS: 10000,
+      // family: 4, // IPv6 문제 있으면 켜볼 수 있음(환경 따라)
     });
     console.log("✅ MongoDB connected successfully");
   } catch (err) {
-    console.error("❌ MongoDB connection error:", err.message);
-    throw err; // Let the .catch in the start block handle the process.exit
+    console.error("❌ MongoDB connection error:", err);
+    throw err;
   }
 }
-
 
 // ---- Schema ----
 const EventSchema = new mongoose.Schema(
   {
-    type: { type: String, required: true },
-    data: { type: Object, default: {} },
+    type: { type: String, required: true, index: true },
+    data: { type: mongoose.Schema.Types.Mixed, default: {} }, // ✅ Mixed가 안전
     ip: { type: String, default: "" },
     ua: { type: String, default: "" },
   },
   { timestamps: true }
 );
 
+EventSchema.index({ createdAt: -1 });
+
 const Event = mongoose.model("Event", EventSchema);
 
 // ---- routes ----
 app.get("/health", (req, res) => res.json({ ok: true }));
 
+// ✅ 프론트는 여기로 보내면 됨: POST http://localhost:4000/api/events
 app.post("/api/events", async (req, res) => {
   try {
     const { type, data } = req.body || {};
+    
+    console.log("EVENT RECEIVED:", req.body);
+
     if (!type) return res.status(400).json({ ok: false, error: "type required" });
 
+    // ✅ 프록시(배포)면 x-forwarded-for, 로컬이면 req.ip가 깔끔
     const ip =
       (req.headers["x-forwarded-for"] || "").toString().split(",")[0].trim() ||
-      req.socket.remoteAddress ||
+      req.ip ||
+      req.socket?.remoteAddress ||
       "";
 
     const ua = req.headers["user-agent"] || "";
 
     await Event.create({ type, data: data || {}, ip, ua });
 
-    // ✅ metrics 증가
     eventsCounter.labels(type).inc();
 
     res.json({ ok: true });
   } catch (e) {
     console.error("POST /api/events error:", e);
-    res.status(500).json({ ok: false });
+    res.status(500).json({ ok: false, error: "server_error" });
   }
 });
 
 app.get("/api/events/recent", async (req, res) => {
-  const limit = Math.min(Number(req.query.limit || 20), 100);
-  const items = await Event.find({}, { __v: 0 })
-    .sort({ createdAt: -1 })
-    .limit(limit)
-    .lean();
+  try {
+    const limit = Math.min(Number(req.query.limit || 20), 100);
 
-  res.json({ ok: true, items });
+    const items = await Event.find({}, { __v: 0 })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    res.json({ ok: true, items });
+  } catch (e) {
+    console.error("GET /api/events/recent error:", e);
+    res.status(500).json({ ok: false, error: "server_error" });
+  }
 });
 
 // ✅ Prometheus scrape endpoint
 app.get("/metrics", async (req, res) => {
-  res.set("Content-Type", register.contentType);
-  res.end(await register.metrics());
+  try {
+    res.set("Content-Type", register.contentType);
+    res.end(await register.metrics());
+  } catch (e) {
+    res.status(500).end(e?.message || "metrics_error");
+  }
 });
 
 // ---- start ----
@@ -163,6 +132,6 @@ connectDB()
     app.listen(PORT, () => console.log(`✅ Backend running on :${PORT}`));
   })
   .catch((err) => {
-    console.error("❌ DB connect failed:", err.message);
+    console.error("❌ DB connect failed:", err?.message || err);
     process.exit(1);
   });
