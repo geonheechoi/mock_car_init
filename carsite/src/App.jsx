@@ -46,7 +46,9 @@ const trackEvent = async (type, data = {}) => {
   }
 };
 */
+/*
 const trackEvent = async (type, data = {}) => {
+  
   const payload = {
     type,
     ts: Date.now(),
@@ -62,7 +64,6 @@ const trackEvent = async (type, data = {}) => {
   };
 
   console.log("EVENT:", payload);
-
   try {
     await fetch(`${API_BASE}/api/events`, {
       method: "POST",
@@ -74,7 +75,69 @@ const trackEvent = async (type, data = {}) => {
   } catch (err) {
     console.error("Failed to send event:", err);
   }
+    
+   try {
+  const res = await fetch(`${API_BASE}/api/events`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    console.error("EVENT SEND FAIL:", res.status, text);
+  }
+} catch (err) {
+  console.error("Failed to send event:", err);
+}
+
 };
+*/
+const getSessionId = () => {
+  const key = "sid";
+  let sid = localStorage.getItem(key);
+  if (sid) return sid;
+
+  // ✅ randomUUID가 없거나 막힌 환경에서도 안전하게 동작
+  sid =
+    (globalThis.crypto?.randomUUID && globalThis.crypto.randomUUID()) ||
+    `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  localStorage.setItem(key, sid);
+  return sid;
+};
+
+const trackEvent = async (type, data = {}) => {
+  // ✅ 백엔드 required 필드에 맞춰 "항상" 값이 존재하도록 보정
+  const sid = localStorage.getItem("sid") ?? crypto.randomUUID();
+    if (!localStorage.getItem("sid")) localStorage.setItem("sid", sid);
+  
+    const payload = {
+    type: String(type || "unknown"),
+    ts: Date.now(),
+    sessionId: getSessionId(),
+    page: String(window.location?.pathname || ""),
+    data: data ?? {}, // undefined/null 방지
+  };
+
+  console.log("EVENT:", payload);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.error("EVENT SEND FAIL:", res.status, text);
+    }
+  } catch (err) {
+    console.error("Failed to send event:", err);
+  }
+};
+
 
   const filteredCars = useMemo(() => {
     const q = search.trim().toLowerCase();

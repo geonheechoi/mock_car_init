@@ -1,4 +1,6 @@
 // 1) MUST BE AT THE VERY TOP: DNS Fix for Node.js v19+ (best-effort)
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
 const dns = require("node:dns");
 
 // ✅ 실무에선 "setServers"만으로 완전 해결 안 되는 경우 많음.
@@ -51,7 +53,32 @@ async function connectDB() {
   }
 }
 
+const EventSchema = new mongoose.Schema(
+  {
+    type: { type: String, required: true, index: true },
+
+    // from client payload
+    ts: { type: Number, required: true, index: true }, // Date.now()
+    sessionId: { type: String, required: true, index: true },
+    page: { type: String, default: "", index: true },
+    data: { type: mongoose.Schema.Types.Mixed, default: {} },
+
+    // from server
+    ip: { type: String, default: "" },
+    ua: { type: String, default: "" },
+  },
+  { timestamps: true }
+);
+
+
+
+// helpful indexes
+EventSchema.index({ createdAt: -1 });
+EventSchema.index({ sessionId: 1, ts: -1 });
+const Event = mongoose.models.Event || mongoose.model("Event", EventSchema);
+//export default mongoose.model("Event", EventSchema);
 // ---- Schema ----
+/*
 const EventSchema = new mongoose.Schema(
   {
     type: { type: String, required: true, index: true },
@@ -65,11 +92,13 @@ const EventSchema = new mongoose.Schema(
 EventSchema.index({ createdAt: -1 });
 
 const Event = mongoose.model("Event", EventSchema);
+*/
 
 // ---- routes ----
 app.get("/health", (req, res) => res.json({ ok: true }));
 
 // ✅ 프론트는 여기로 보내면 됨: POST http://localhost:4000/api/events
+/*
 app.post("/api/events", async (req, res) => {
   try {
     const { type, data } = req.body || {};
@@ -97,7 +126,53 @@ app.post("/api/events", async (req, res) => {
     res.status(500).json({ ok: false, error: "server_error" });
   }
 });
+*/
+app.post("/api/events", async (req, res) => {
+  try {
+    const { type, ts, sessionId, page, data } = req.body || {};
 
+    console.log("EVENT RECEIVED:", req.body);
+
+    // ✅ payload 필수값 검증 (새 payload 기준)
+    if (!type) return res.status(400).json({ ok: false, error: "type required" });
+    if (typeof ts !== "number") {
+      return res.status(400).json({ ok: false, error: "ts required (number)" });
+    }
+    if (!sessionId) {
+      return res.status(400).json({ ok: false, error: "sessionId required" });
+    }
+
+    // ✅ 프록시(배포)면 x-forwarded-for, 로컬이면 req.ip가 깔끔
+    const ip =
+      (req.headers["x-forwarded-for"] || "").toString().split(",")[0].trim() ||
+      req.ip ||
+      req.socket?.remoteAddress ||
+      "";
+
+    const ua = req.headers["user-agent"] || "";
+    
+    console.log("ip ua:", ip, ua);
+
+
+    // ✅ 새 payload 그대로 저장
+    await Event.create({
+      type,
+      ts,
+      sessionId,
+      page: page || "",
+      data: data || {},
+      ip,
+      ua,
+    });
+
+    eventsCounter.labels(type).inc();
+
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("POST /api/events error:", e);
+    res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
 app.get("/api/events/recent", async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit || 20), 100);
