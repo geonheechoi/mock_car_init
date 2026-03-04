@@ -1,3 +1,7 @@
+// 1. MUST BE AT THE VERY TOP: DNS Fix for Node.js v19+ 
+const dns = require("node:dns");
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
+
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
@@ -55,16 +59,46 @@ async function connectDB() {
   console.log("✅ MongoDB connected");
 }
   */
+ /*
  async function connectDB() {
 
   const uri =
-  "mongodb+srv://fear5579_db_user:123456789*@cluster0.pt8d93p.mongodb.net/y";
+  await mongoose.connect(uri, {
+    "mongodb+srv://fear5579_db_user:123456789*@cluster0.pt8d93p.mongodb.net/carsite?retryWrites=true&w=majority"
+    serverSelectionTimeoutMS: 10000,
+  });
+
+  console.log("✅ MongoDB connected");
+}
+  */
+ /*
+async function connectDB() {
+  const uri =
+    "mongodb://USER:PASSWORD@cluster0-shard-00-00...:27017,cluster0-shard-00-01...:27017,cluster0-shard-00-02...:27017/carsite?ssl=true&replicaSet=...&authSource=admin&retryWrites=true&w=majority";
+
   await mongoose.connect(uri, {
     serverSelectionTimeoutMS: 10000,
   });
 
   console.log("✅ MongoDB connected");
 }
+  */
+ async function connectDB() {
+  // Use the SRV string from your Atlas dashboard
+  const uri ="mongodb+srv://fear5579_db_user:123456789*@cluster0.pt8d93p.mongodb.net/carsite?retryWrites=true&w=majority";
+
+  try {
+    await mongoose.connect(uri, {
+      serverSelectionTimeoutMS: 10000,
+    });
+    console.log("✅ MongoDB connected successfully");
+  } catch (err) {
+    console.error("❌ MongoDB connection error:", err.message);
+    throw err; // Let the .catch in the start block handle the process.exit
+  }
+}
+
+
 // ---- Schema ----
 const EventSchema = new mongoose.Schema(
   {
