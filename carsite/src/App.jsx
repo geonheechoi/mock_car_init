@@ -128,6 +128,12 @@ const trackEvent = async (type, data = {}) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+    const json = await res.json();
+
+    console.log("EVENT:", payload);
+    console.log("CLIENT UA:", navigator.userAgent);
+    console.log("SERVER IP:", json.ip);
+    console.log("SERVER UA:", json.ua);
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");

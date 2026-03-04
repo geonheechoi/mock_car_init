@@ -167,7 +167,8 @@ app.post("/api/events", async (req, res) => {
 
     eventsCounter.labels(type).inc();
 
-    res.json({ ok: true });
+   // res.json({ ok: true });
+   res.json({ ok: true, ip, ua });
   } catch (e) {
     console.error("POST /api/events error:", e);
     res.status(500).json({ ok: false, error: "server_error" });
