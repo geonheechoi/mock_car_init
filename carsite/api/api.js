@@ -1,5 +1,8 @@
 // 1) MUST BE AT THE VERY TOP: DNS Fix for Node.js v19+ (best-effort)
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+
+
 const require = createRequire(import.meta.url);
 const dns = require("node:dns");
 
@@ -11,9 +14,16 @@ const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const client = require("prom-client");
+const fs = require("fs");
+const path = require("path");
 require("dotenv").config();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
+const PORT = process.env.PORT || 4000;
+
 
 // ✅ 프론트 도메인 나중에 제한 가능
 app.use(cors({ origin: true }));
@@ -53,6 +63,20 @@ async function connectDB() {
   }
 }
 
+// ---- log file setup ----
+const logDir = path.join(__dirname, "logs");
+const logFile = path.join(logDir, "app.log");
+
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir, { recursive: true });
+}
+
+function writeLog(level, message) {
+  const line = `${new Date().toISOString()} level=${level} message="${message}"\n`;
+  fs.appendFileSync(logFile, line, "utf8");
+  console.log(line.trim());
+}
+
 const EventSchema = new mongoose.Schema(
   {
     type: { type: String, required: true, index: true },
@@ -75,17 +99,32 @@ const EventSchema = new mongoose.Schema(
 // helpful indexes
 EventSchema.index({ createdAt: -1 });
 EventSchema.index({ sessionId: 1, ts: -1 });
+
 const Event = mongoose.models.Event || mongoose.model("Event", EventSchema);
 
 // ---- routes ----
-app.get("/health", (req, res) => res.json({ ok: true }));
+//app.get("/health", (req, res) => res.json({ ok: true }));
+app.get("/", (req, res) => {
+  writeLog("info", "GET /");
+  res.send("Node app is running");
+});
 
+app.get("/error", (req, res) => {
+  writeLog("error", "GET /error");
+  res.status(500).send("error route");
+});
+
+app.get("/health", (req, res) => {
+  writeLog("info", "GET /health");
+  res.json({ ok: true });
+});
 // ✅ 프론트는 여기로 보내면 됨: POST http://localhost:4000/api/events
 
 app.post("/api/events", async (req, res) => {
   try {
     const { type, ts, sessionId, page, data } = req.body || {};
-
+        
+    writeLog("info", `POST /api/events type=${type || "unknown"}`);
     console.log("EVENT RECEIVED:", req.body);
 
     // ✅ payload 필수값 검증 (새 payload 기준)
@@ -125,12 +164,16 @@ app.post("/api/events", async (req, res) => {
    // res.json({ ok: true });
    res.json({ ok: true, ip, ua });
   } catch (e) {
+    writeLog("error", `POST /api/events error=${e?.message || "server_error"}`);
     console.error("POST /api/events error:", e);
     res.status(500).json({ ok: false, error: "server_error" });
   }
 });
 app.get("/api/events/recent", async (req, res) => {
   try {
+    
+    writeLog("info", "GET /api/events/recent");
+
     const limit = Math.min(Number(req.query.limit || 20), 100);
 
     const items = await Event.find({}, { __v: 0 })
@@ -140,6 +183,7 @@ app.get("/api/events/recent", async (req, res) => {
 
     res.json({ ok: true, items });
   } catch (e) {
+    writeLog("error", `GET /api/events/recent error=${e?.message || "server_error"}`);
     console.error("GET /api/events/recent error:", e);
     res.status(500).json({ ok: false, error: "server_error" });
   }
@@ -148,18 +192,22 @@ app.get("/api/events/recent", async (req, res) => {
 // ✅ Prometheus scrape endpoint
 app.get("/metrics", async (req, res) => {
   try {
+    writeLog("info", "GET /metrics");
+    
     res.set("Content-Type", register.contentType);
     res.end(await register.metrics());
   } catch (e) {
+    writeLog("error", `GET /metrics error=${e?.message || "metrics_error"}`);
     res.status(500).end(e?.message || "metrics_error");
   }
 });
 
 // ---- start ----
-const PORT = process.env.PORT || 4000;
+//const PORT = process.env.PORT || 4000;
 
 connectDB()
   .then(() => {
+    writeLog("info", `server started on port ${PORT}`);
     app.listen(PORT, () => console.log(`✅ Backend running on :${PORT}`));
   })
   .catch((err) => {
