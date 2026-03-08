@@ -76,57 +76,12 @@ const EventSchema = new mongoose.Schema(
 EventSchema.index({ createdAt: -1 });
 EventSchema.index({ sessionId: 1, ts: -1 });
 const Event = mongoose.models.Event || mongoose.model("Event", EventSchema);
-//export default mongoose.model("Event", EventSchema);
-// ---- Schema ----
-/*
-const EventSchema = new mongoose.Schema(
-  {
-    type: { type: String, required: true, index: true },
-    data: { type: mongoose.Schema.Types.Mixed, default: {} }, // ✅ Mixed가 안전
-    ip: { type: String, default: "" },
-    ua: { type: String, default: "" },
-  },
-  { timestamps: true }
-);
-
-EventSchema.index({ createdAt: -1 });
-
-const Event = mongoose.model("Event", EventSchema);
-*/
 
 // ---- routes ----
 app.get("/health", (req, res) => res.json({ ok: true }));
 
 // ✅ 프론트는 여기로 보내면 됨: POST http://localhost:4000/api/events
-/*
-app.post("/api/events", async (req, res) => {
-  try {
-    const { type, data } = req.body || {};
-    
-    console.log("EVENT RECEIVED:", req.body);
 
-    if (!type) return res.status(400).json({ ok: false, error: "type required" });
-
-    // ✅ 프록시(배포)면 x-forwarded-for, 로컬이면 req.ip가 깔끔
-    const ip =
-      (req.headers["x-forwarded-for"] || "").toString().split(",")[0].trim() ||
-      req.ip ||
-      req.socket?.remoteAddress ||
-      "";
-
-    const ua = req.headers["user-agent"] || "";
-
-    await Event.create({ type, data: data || {}, ip, ua });
-
-    eventsCounter.labels(type).inc();
-
-    res.json({ ok: true });
-  } catch (e) {
-    console.error("POST /api/events error:", e);
-    res.status(500).json({ ok: false, error: "server_error" });
-  }
-});
-*/
 app.post("/api/events", async (req, res) => {
   try {
     const { type, ts, sessionId, page, data } = req.body || {};
