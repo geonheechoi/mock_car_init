@@ -14,7 +14,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [cartCount, setCartCount] = useState(0);
 
-const API_BASE = "http://localhost:4000"; // 네 백엔드 주소
+const API_BASE = "https://mock-car-init-1.onrender.com"; // 네 백엔드 주소
 
 const getSessionId = () => {
   const key = "sid";
